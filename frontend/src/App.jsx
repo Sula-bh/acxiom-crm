@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "./api";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
@@ -28,9 +28,10 @@ export default function App() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function loadCustomers() {
+  const loadCustomers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get("/customers", {
@@ -45,12 +46,12 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [search]);
 
   useEffect(() => {
     const timer = setTimeout(loadCustomers, 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [loadCustomers]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -59,8 +60,35 @@ export default function App() {
     api
       .get("/auth/me")
       .then(({ data }) => setUser(data.user))
-      .catch(() => localStorage.removeItem("token"));
+      .catch(() => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      });
   }, []);
+
+  async function logout() {
+    let revocationUnconfirmed = false;
+
+    try {
+      await api.post("/auth/logout");
+    } catch (err) {
+      revocationUnconfirmed = err.response?.status !== 401;
+    } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      setUser(null);
+      setAuthNotice(
+        revocationUnconfirmed
+          ? "You were signed out here, but the server could not confirm token revocation."
+          : "",
+      );
+    }
+  }
+
+  function handleLogin(nextUser) {
+    setAuthNotice("");
+    setUser(nextUser);
+  }
 
   function openCreate() {
     setEditingId(null);
@@ -134,7 +162,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login onLogin={setUser} />;
+    return <Login onLogin={handleLogin} notice={authNotice} />;
   }
 
   return (
@@ -149,10 +177,7 @@ export default function App() {
           </span>
           <button
             className="btn btn-outline-light btn-sm"
-            onClick={() => {
-              localStorage.removeItem("token");
-              setUser(null);
-            }}
+            onClick={logout}
           >
             Logout
           </button>

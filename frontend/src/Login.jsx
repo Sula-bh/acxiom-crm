@@ -1,7 +1,7 @@
 import { useState } from "react";
 import api from "./api";
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, notice }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -39,6 +39,7 @@ export default function Login({ onLogin }) {
           <p className="text-secondary">Sign in to your account</p>
         </div>
 
+        {notice && <div className="alert alert-warning">{notice}</div>}
         {error && <div className="alert alert-danger">{error}</div>}
 
         <form onSubmit={handleSubmit}>
