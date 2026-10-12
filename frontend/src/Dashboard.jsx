@@ -24,6 +24,8 @@ ChartJS.register(
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -31,25 +33,59 @@ export default function Dashboard() {
     api
       .get("/dashboard")
       .then(({ data }) => {
-        if (active) setStats(data);
+        if (!active) return;
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+          setError("Dashboard data is unavailable.");
+          return;
+        }
+        setStats(data);
       })
       .catch(() => {
         if (active) setError("Unable to load dashboard.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [retryCount]);
+
+  function retry() {
+    setError("");
+    setLoading(true);
+    setRetryCount((count) => count + 1);
+  }
+
+  if (!stats) {
+    return (
+      <div>
+        <h2 className="mb-4">Dashboard</h2>
+        {error ? (
+          <div className="alert alert-danger" role="alert">
+            <p className="mb-2">{error}</p>
+            <button className="btn btn-outline-danger" onClick={retry}>
+              Retry
+            </button>
+          </div>
+        ) : (
+          <p role="status" aria-live="polite">
+            {loading ? "Loading dashboard..." : "No dashboard data available."}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const cards = [
-    ["Total Customers", stats.total_customers],
-    ["Total Leads", stats.total_leads],
-    ["Open Leads", stats.open_leads],
-    ["Total Opportunities", stats.total_opportunities],
-    ["Open Opportunities", stats.open_opportunities],
-    ["Won Opportunities", stats.won_opportunities],
-    ["Lost Opportunities", stats.lost_opportunities],
+    ["Total Customers", stats.total_customers ?? 0],
+    ["Total Leads", stats.total_leads ?? 0],
+    ["Open Leads", stats.open_leads ?? 0],
+    ["Total Opportunities", stats.total_opportunities ?? 0],
+    ["Open Opportunities", stats.open_opportunities ?? 0],
+    ["Won Opportunities", stats.won_opportunities ?? 0],
+    ["Lost Opportunities", stats.lost_opportunities ?? 0],
     [
       "Pipeline Value",
       Number(stats.pipeline_value || 0).toLocaleString(undefined, {
@@ -77,6 +113,7 @@ export default function Dashboard() {
       },
     ],
   };
+  const opportunityCounts = opportunityChart.datasets[0].data;
 
   const leadChart = {
     labels: [
@@ -109,10 +146,24 @@ export default function Dashboard() {
       },
     ],
   };
+  const leadCounts = leadChart.datasets[0].data;
 
   return (
     <div>
       <h2 className="mb-4">Dashboard</h2>
+      {error && (
+        <div className="alert alert-warning d-flex justify-content-between align-items-center">
+          <span>{error}</span>
+          <button className="btn btn-outline-warning" onClick={retry}>
+            Retry
+          </button>
+        </div>
+      )}
+      {loading && (
+        <p role="status" aria-live="polite">
+          Refreshing dashboard...
+        </p>
+      )}
       <div className="row g-3">
         {cards.map(([label, value]) => (
           <div className="col-12 col-sm-6 col-xl-3" key={label}>
@@ -131,17 +182,21 @@ export default function Dashboard() {
             <div className="card-body">
               <h5>Opportunities by Stage</h5>
               <div style={{ position: "relative", height: "280px" }}>
-                <Bar
-                  data={opportunityChart}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                      y: { beginAtZero: true, ticks: { precision: 0 } },
-                    },
-                    plugins: { legend: { display: false } },
-                  }}
-                />
+                {opportunityCounts.some((count) => count > 0) ? (
+                  <Bar
+                    data={opportunityChart}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                      },
+                      plugins: { legend: { display: false } },
+                    }}
+                  />
+                ) : (
+                  <p role="status">No opportunity data available.</p>
+                )}
               </div>
             </div>
           </div>
@@ -152,14 +207,18 @@ export default function Dashboard() {
             <div className="card-body">
               <h5>Leads by Status</h5>
               <div style={{ position: "relative", height: "280px" }}>
-                <Doughnut
-                  data={leadChart}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: "bottom" } },
-                  }}
-                />
+                {leadCounts.some((count) => count > 0) ? (
+                  <Doughnut
+                    data={leadChart}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { position: "bottom" } },
+                    }}
+                  />
+                ) : (
+                  <p role="status">No lead data available.</p>
+                )}
               </div>
             </div>
           </div>
