@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "./api";
 
 const emptyForm = {
@@ -12,15 +12,26 @@ const emptyForm = {
   expected_value: 0,
 };
 
+function getLocalDate() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+}
+
 export default function Leads() {
   const [leads, setLeads] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conversionLead, setConversionLead] = useState(null);
+  const [conversionForm, setConversionForm] = useState(null);
+  const [conversionError, setConversionError] = useState("");
+  const [converting, setConverting] = useState(false);
 
-  async function loadLeads() {
+  const loadLeads = useCallback(async () => {
     try {
       const { data } = await api.get("/leads", {
         params: { search },
@@ -29,12 +40,12 @@ export default function Leads() {
     } catch {
       setError("Unable to load leads.");
     }
-  }
+  }, [search]);
 
   useEffect(() => {
     const timer = setTimeout(loadLeads, 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [loadLeads]);
 
   function changeField(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -43,6 +54,7 @@ export default function Leads() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
     try {
@@ -87,9 +99,48 @@ export default function Leads() {
 
     try {
       await api.delete(`/leads/${id}`);
+      setSuccess("Lead deleted successfully.");
       await loadLeads();
     } catch (err) {
       setError(err.response?.data?.error || "Unable to delete lead.");
+    }
+  }
+
+  function openConversion(lead) {
+    setConversionLead(lead);
+    setConversionForm({
+      email: lead.email || "",
+      phone: lead.phone || "",
+      createOpportunity: Number(lead.expected_value) > 0,
+      expectedCloseDate: "",
+    });
+    setConversionError("");
+  }
+
+  async function convertLead(e) {
+    e.preventDefault();
+    setConversionError("");
+    setConverting(true);
+
+    try {
+      const { data } = await api.post(
+        `/leads/${conversionLead.id}/convert`,
+        conversionForm,
+      );
+      setSuccess(
+        data.alreadyConverted
+          ? "This lead was already converted."
+          : "Lead converted successfully.",
+      );
+      setConversionLead(null);
+      setConversionForm(null);
+      await loadLeads();
+    } catch (err) {
+      setConversionError(
+        err.response?.data?.error || "Unable to convert lead.",
+      );
+    } finally {
+      setConverting(false);
     }
   }
 
@@ -98,6 +149,7 @@ export default function Leads() {
       <h2 className="mb-3">Lead Management</h2>
 
       {error && <div className="alert alert-danger">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
 
       <form onSubmit={handleSubmit} className="card card-body mb-4">
         <h5>{editingId ? "Edit Lead" : "Add Lead"}</h5>
@@ -138,7 +190,6 @@ export default function Leads() {
                 "Contacted",
                 "Qualified",
                 "Unqualified",
-                "Converted",
                 "Lost",
               ].map((x) => (
                 <option key={x}>{x}</option>
@@ -210,12 +261,14 @@ export default function Leads() {
                 <td>{lead.priority}</td>
                 <td>{Number(lead.expected_value).toLocaleString()}</td>
                 <td className="text-nowrap">
-                  <button
-                    className="btn btn-sm btn-outline-primary me-2"
-                    onClick={() => editLead(lead)}
-                  >
-                    Edit
-                  </button>
+                  {lead.status !== "Converted" && (
+                    <button
+                      className="btn btn-sm btn-outline-primary me-2"
+                      onClick={() => editLead(lead)}
+                    >
+                      Edit
+                    </button>
+                  )}
                   {["Admin", "Manager"].includes(
                     JSON.parse(localStorage.getItem("user") || "null")?.role,
                   ) && (
@@ -224,6 +277,14 @@ export default function Leads() {
                       onClick={() => deleteLead(lead.id)}
                     >
                       Delete
+                    </button>
+                  )}
+                  {lead.status === "Qualified" && (
+                    <button
+                      className="btn btn-sm btn-outline-success"
+                      onClick={() => openConversion(lead)}
+                    >
+                      Convert
                     </button>
                   )}
                 </td>
@@ -239,6 +300,149 @@ export default function Leads() {
           </tbody>
         </table>
       </div>
+
+      {conversionLead && conversionForm && (
+        <>
+          <div
+            className="modal show d-block"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lead-conversion-title"
+            tabIndex="-1"
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content text-start">
+                <form onSubmit={convertLead}>
+                  <div className="modal-header">
+                    <h5 className="modal-title" id="lead-conversion-title">
+                      Convert {conversionLead.name}
+                    </h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      aria-label="Close"
+                      onClick={() => setConversionLead(null)}
+                    />
+                  </div>
+                  <div className="modal-body">
+                    {conversionError && (
+                      <div className="alert alert-danger" role="alert">
+                        {conversionError}
+                      </div>
+                    )}
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="conversion-email">
+                        Customer email
+                      </label>
+                      <input
+                        className="form-control"
+                        id="conversion-email"
+                        type="email"
+                        maxLength={255}
+                        required
+                        value={conversionForm.email}
+                        onChange={(e) =>
+                          setConversionForm({
+                            ...conversionForm,
+                            email: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="conversion-phone">
+                        Customer phone
+                      </label>
+                      <input
+                        className="form-control"
+                        id="conversion-phone"
+                        type="tel"
+                        pattern="^\+?[0-9]{10,15}$"
+                        maxLength={16}
+                        required
+                        value={conversionForm.phone}
+                        onChange={(e) =>
+                          setConversionForm({
+                            ...conversionForm,
+                            phone: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="form-check mb-3">
+                      <input
+                        className="form-check-input"
+                        id="conversion-opportunity"
+                        type="checkbox"
+                        disabled={Number(conversionLead.expected_value) <= 0}
+                        checked={conversionForm.createOpportunity}
+                        onChange={(e) =>
+                          setConversionForm({
+                            ...conversionForm,
+                            createOpportunity: e.target.checked,
+                          })
+                        }
+                      />
+                      <label
+                        className="form-check-label"
+                        htmlFor="conversion-opportunity"
+                      >
+                        Create an opportunity for{" "}
+                        {Number(conversionLead.expected_value).toLocaleString()}
+                      </label>
+                    </div>
+                    {Number(conversionLead.expected_value) <= 0 && (
+                      <p className="form-text">
+                        An opportunity requires a positive expected lead value.
+                      </p>
+                    )}
+                    {conversionForm.createOpportunity && (
+                      <div className="mb-3">
+                        <label
+                          className="form-label"
+                          htmlFor="conversion-close-date"
+                        >
+                          Expected close date
+                        </label>
+                        <input
+                          className="form-control"
+                          id="conversion-close-date"
+                          type="date"
+                          min={getLocalDate()}
+                          required
+                          value={conversionForm.expectedCloseDate}
+                          onChange={(e) =>
+                            setConversionForm({
+                              ...conversionForm,
+                              expectedCloseDate: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="modal-footer">
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={() => setConversionLead(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn-success"
+                      disabled={converting}
+                    >
+                      {converting ? "Converting..." : "Convert Lead"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop show" />
+        </>
+      )}
     </div>
   );
 }
