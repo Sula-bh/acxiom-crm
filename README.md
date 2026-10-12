@@ -5,14 +5,6 @@ tracking customers, sales leads, opportunities, follow-ups, and user activity.
 It provides a role-aware React interface backed by an Express REST API and
 PostgreSQL.
 
-> **Submission and assignment note:** This repository implements React/Vite,
-> Node.js/Express, and PostgreSQL. The assignment brief reviewed for this
-> project specifies ASP.NET Core Identity, Entity Framework Core, and
-> MVC/Razor in its mandatory technology requirements. This codebase therefore
-> deviates from that stack unless the evaluator has approved an alternative.
-> The original assignment PDF is not included in this repository; verify the
-> submitted copy and any alternative-stack approval before final submission.
-
 ## Project objectives
 
 - Maintain customer, lead, opportunity, and follow-up records in one CRM.
