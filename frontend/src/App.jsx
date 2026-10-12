@@ -6,6 +6,7 @@ import Leads from "./Leads";
 import Opportunities from "./Opportunities";
 import Followups from "./Followups";
 import Users from "./Users";
+import Reports from "./Reports";
 
 const emptyForm = {
   customerCode: "",
@@ -167,11 +168,30 @@ export default function App() {
 
   return (
     <div className="container-fluid bg-light min-vh-100">
-      <header className="bg-dark text-white px-4 py-3 d-flex justify-content-between align-items-center">
+      <header className="bg-dark text-white px-4 py-3 d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3">
         <h4 className="mb-0">AcxiomCRM</h4>
 
+        <nav className="d-flex flex-wrap gap-2" aria-label="Main navigation">
+          {[
+            ["Dashboard", "#dashboard"],
+            ["Leads", "#leads"],
+            ["Opportunities", "#opportunities"],
+            ["Follow-ups", "#followups"],
+            ["Customers", "#customers"],
+            ["Reports", "#reports"],
+            ...(user.role === "Admin" ? [["Users", "#users"]] : []),
+          ].map(([label, href]) => (
+            <a
+              className="btn btn-sm btn-outline-light"
+              href={href}
+              key={href}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+
         <div className="d-flex align-items-center gap-3">
-          <span>Customers</span>
           <span>
             {user.name} · {user.role}
           </span>
@@ -193,7 +213,12 @@ export default function App() {
         <hr className="my-4" />
         <Followups />
         <hr className="my-4" />
-        <div className="d-flex justify-content-between align-items-center mb-4">
+        <Reports user={user} />
+        <hr className="my-4" />
+        <div
+          id="customers"
+          className="d-flex justify-content-between align-items-center mb-4"
+        >
           <div>
             <h2>Customers</h2>
             <p className="text-secondary mb-0">

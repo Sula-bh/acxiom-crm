@@ -60,7 +60,7 @@ export default function Dashboard() {
 
   if (!stats) {
     return (
-      <div>
+      <div id="dashboard">
         <h2 className="mb-4">Dashboard</h2>
         {error ? (
           <div className="alert alert-danger" role="alert">
@@ -149,7 +149,7 @@ export default function Dashboard() {
   const leadCounts = leadChart.datasets[0].data;
 
   return (
-    <div>
+    <div id="dashboard">
       <h2 className="mb-4">Dashboard</h2>
       {error && (
         <div className="alert alert-warning d-flex justify-content-between align-items-center">

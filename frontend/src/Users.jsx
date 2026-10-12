@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "./api";
 
 const initialForm = {
@@ -15,18 +15,21 @@ export default function Users() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function loadUsers() {
+  const loadUsers = useCallback(async () => {
     try {
       const { data } = await api.get("/users");
       setUsers(data);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load users.");
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    const timer = setTimeout(() => {
+      void loadUsers();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadUsers]);
 
   async function createUser(e) {
     e.preventDefault();
@@ -62,7 +65,7 @@ export default function Users() {
   }
 
   return (
-    <div>
+    <div id="users">
       <h2 className="mb-3">User Management</h2>
 
       {error && <div className="alert alert-danger">{error}</div>}

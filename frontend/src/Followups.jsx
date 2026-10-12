@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "./api";
 
 const initialForm = {
@@ -19,7 +19,7 @@ export default function Followups() {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState("");
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const [f, c, l] = await Promise.all([
         api.get("/followups"),
@@ -32,11 +32,14 @@ export default function Followups() {
     } catch {
       setError("Unable to load follow-ups.");
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadData]);
 
   function change(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -102,7 +105,7 @@ export default function Followups() {
   const canDelete = ["Admin", "Manager"].includes(user?.role);
 
   return (
-    <div>
+    <div id="followups">
       <h2 className="mb-3">Follow-up Management</h2>
 
       {error && <div className="alert alert-danger">{error}</div>}

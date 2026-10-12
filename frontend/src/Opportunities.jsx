@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "./api";
 
 const initialForm = {
@@ -21,7 +21,7 @@ export default function Opportunities() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const [opps, customerData, leadData] = await Promise.all([
         api.get("/opportunities", { params: { search } }),
@@ -34,12 +34,14 @@ export default function Opportunities() {
     } catch {
       setError("Unable to load opportunities or linked records.");
     }
-  }
+  }, [search]);
 
   useEffect(() => {
-    const timer = setTimeout(loadData, 250);
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [loadData]);
 
   function changeField(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -111,7 +113,7 @@ export default function Opportunities() {
   const canDelete = ["Admin", "Manager"].includes(user?.role);
 
   return (
-    <div>
+    <div id="opportunities">
       <h2 className="mb-3">Opportunity Management</h2>
 
       {error && <div className="alert alert-danger">{error}</div>}

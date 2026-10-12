@@ -145,7 +145,7 @@ export default function Leads() {
   }
 
   return (
-    <div>
+    <div id="leads">
       <h2 className="mb-3">Lead Management</h2>
 
       {error && <div className="alert alert-danger">{error}</div>}
