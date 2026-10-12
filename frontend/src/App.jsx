@@ -3,6 +3,7 @@ import api from "./api";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
 import Leads from "./Leads";
+import Opportunities from "./Opportunities";
 
 const emptyForm = {
   customerCode: "",
@@ -160,6 +161,8 @@ export default function App() {
         <Dashboard />
         <hr className="my-4" />
         <Leads />
+        <hr className="my-4" />
+        <Opportunities />
         <hr className="my-4" />
         <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
