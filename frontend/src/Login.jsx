@@ -19,6 +19,7 @@ export default function Login({ onLogin }) {
       });
 
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
       onLogin(data.user);
     } catch (err) {
       setError(err.response?.data?.error || "Login failed.");

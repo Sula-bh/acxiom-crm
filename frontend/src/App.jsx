@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "./api";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
+import Leads from "./Leads";
 
 const emptyForm = {
   customerCode: "",
@@ -158,7 +159,8 @@ export default function App() {
       <main className="container py-4">
         <Dashboard />
         <hr className="my-4" />
-
+        <Leads />
+        <hr className="my-4" />
         <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
             <h2>Customers</h2>
