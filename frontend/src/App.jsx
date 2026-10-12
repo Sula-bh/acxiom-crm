@@ -5,6 +5,7 @@ import Dashboard from "./Dashboard";
 import Leads from "./Leads";
 import Opportunities from "./Opportunities";
 import Followups from "./Followups";
+import Users from "./Users";
 
 const emptyForm = {
   customerCode: "",
@@ -320,6 +321,7 @@ export default function App() {
             )}
           </div>
         </div>
+        {user.role === "Admin" && <Users />}
       </main>
     </div>
   );
