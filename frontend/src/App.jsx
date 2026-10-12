@@ -4,6 +4,7 @@ import Login from "./Login";
 import Dashboard from "./Dashboard";
 import Leads from "./Leads";
 import Opportunities from "./Opportunities";
+import Followups from "./Followups";
 
 const emptyForm = {
   customerCode: "",
@@ -163,6 +164,8 @@ export default function App() {
         <Leads />
         <hr className="my-4" />
         <Opportunities />
+        <hr className="my-4" />
+        <Followups />
         <hr className="my-4" />
         <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
