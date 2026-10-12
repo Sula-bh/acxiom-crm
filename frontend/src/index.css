@@ -91,6 +91,12 @@ h2 {
     font-size: 20px;
   }
 }
+
+.bg-light h1,
+.bg-light h2 {
+  color: #212529;
+}
+
 p {
   margin: 0;
 }
