@@ -5,6 +5,17 @@ tracking customers, sales leads, opportunities, follow-ups, and user activity.
 It provides a role-aware React interface backed by an Express REST API and
 PostgreSQL.
 
+## Screenshots
+
+### Dashboard and Lead Management
+![AcxiomCRM dashboard and lead management](docs/screenshots/1.png)
+
+### Opportunity and Follow-up Management
+![AcxiomCRM opportunity and follow-up management](docs/screenshots/2.png)
+
+### Reports and User Management
+![AcxiomCRM reports and user management](docs/screenshots/3.png)
+
 ## Project objectives
 
 - Maintain customer, lead, opportunity, and follow-up records in one CRM.
