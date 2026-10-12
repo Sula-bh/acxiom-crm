@@ -38,6 +38,47 @@ const leadSchema = z.object({
   expected_value: z.coerce.number().finite().min(0).default(0),
 });
 
+const conversionSchema = z
+  .object({
+    customerCode: z.string().trim().min(1).max(30).optional(),
+    email: optionalEmail,
+    phone: optionalPhone,
+    companyName: z.string().trim().max(150).optional(),
+    createOpportunity: z.boolean().default(false),
+    expectedCloseDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD format")
+      .optional(),
+    probability: z.coerce.number().finite().min(0).max(100).default(10),
+  })
+  .superRefine((data, context) => {
+    if (!data.createOpportunity) return;
+
+    if (!data.expectedCloseDate) {
+      context.addIssue({
+        code: "custom",
+        message: "Expected close date is required for the opportunity",
+        path: ["expectedCloseDate"],
+      });
+      return;
+    }
+
+    const closeDate = new Date(`${data.expectedCloseDate}T00:00:00.000Z`);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const validDate =
+      !Number.isNaN(closeDate.getTime()) &&
+      closeDate.toISOString().slice(0, 10) === data.expectedCloseDate;
+
+    if (!validDate || closeDate < today) {
+      context.addIssue({
+        code: "custom",
+        message: "Expected close date cannot be in the past",
+        path: ["expectedCloseDate"],
+      });
+    }
+  });
+
 // GET all leads with optional search
 router.get("/", async (req, res) => {
   try {
@@ -95,6 +136,204 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+// Convert a qualified lead once, keeping its related records and audit events atomic.
+router.post("/:id/convert", async (req, res) => {
+  const leadId = Number(req.params.id);
+
+  if (!Number.isInteger(leadId) || leadId <= 0) {
+    return res.status(400).json({ error: "Invalid lead ID" });
+  }
+
+  const parsed = conversionSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: parsed.error.issues[0].message,
+    });
+  }
+
+  let client;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const leadResult = await client.query(
+      "SELECT * FROM leads WHERE id = $1 FOR UPDATE",
+      [leadId],
+    );
+
+    if (!leadResult.rowCount) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    const lead = leadResult.rows[0];
+
+    if (
+      req.user.role === "SalesExecutive" &&
+      Number(lead.assigned_to) !== Number(req.user.id)
+    ) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    if (lead.status === "Converted") {
+      if (!lead.converted_customer_id) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "Lead is marked converted but has no linked customer",
+        });
+      }
+
+      const [customerResult, opportunityResult] = await Promise.all([
+        client.query("SELECT * FROM customers WHERE id = $1", [
+          lead.converted_customer_id,
+        ]),
+        lead.converted_opportunity_id
+          ? client.query("SELECT * FROM opportunities WHERE id = $1", [
+              lead.converted_opportunity_id,
+            ])
+          : Promise.resolve({ rows: [] }),
+      ]);
+
+      if (!customerResult.rowCount) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "Converted customer record is missing",
+        });
+      }
+
+      await client.query("COMMIT");
+      return res.json({
+        lead,
+        customer: customerResult.rows[0],
+        opportunity: opportunityResult.rows[0] || null,
+        alreadyConverted: true,
+      });
+    }
+
+    if (lead.status !== "Qualified") {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: "Only qualified leads can be converted",
+      });
+    }
+
+    const conversion = parsed.data;
+    const email = conversion.email || lead.email;
+    const phone = conversion.phone || lead.phone;
+
+    if (!email) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "A valid email address is required to create the customer",
+      });
+    }
+
+    if (!phone) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "A valid phone number is required to create the customer",
+      });
+    }
+
+    if (conversion.createOpportunity && Number(lead.expected_value) <= 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Lead expected value must be greater than zero",
+      });
+    }
+
+    const ownerId = lead.assigned_to || req.user.id;
+    const customerCode = conversion.customerCode || `CUS-${lead.lead_code}`;
+    const customerResult = await client.query(
+      `INSERT INTO customers
+       (customer_code, name, email, phone, company_name, status, owner_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,'Active',$6,$7)
+       RETURNING id, customer_code, name, email, phone, company_name,
+                 status, owner_id, created_at`,
+      [
+        customerCode,
+        lead.name,
+        email.toLowerCase(),
+        phone,
+        conversion.companyName || lead.company_name || null,
+        ownerId,
+        req.user.id,
+      ],
+    );
+    const customer = customerResult.rows[0];
+    let opportunity = null;
+
+    if (conversion.createOpportunity) {
+      const opportunityResult = await client.query(
+        `INSERT INTO opportunities
+         (name, customer_id, lead_id, amount, stage, probability,
+          expected_close_date, assigned_to)
+         VALUES ($1,$2,$3,$4,'Qualification',$5,$6,$7)
+         RETURNING *`,
+        [
+          lead.name,
+          customer.id,
+          lead.id,
+          lead.expected_value,
+          conversion.probability,
+          conversion.expectedCloseDate,
+          ownerId,
+        ],
+      );
+      opportunity = opportunityResult.rows[0];
+    }
+
+    const updatedLeadResult = await client.query(
+      `UPDATE leads
+       SET status = 'Converted',
+           converted_customer_id = $1,
+           converted_opportunity_id = $2
+       WHERE id = $3
+       RETURNING *`,
+      [customer.id, opportunity?.id || null, lead.id],
+    );
+
+    await client.query(
+      `INSERT INTO audit_logs
+       (user_id, action, entity_name, record_id, old_value, new_value, ip_address)
+       VALUES ($1, 'CONVERT', 'Lead', $2, $3, $4, $5)`,
+      [
+        req.user.id,
+        lead.id,
+        JSON.stringify({ status: lead.status }),
+        JSON.stringify({
+          status: "Converted",
+          customer_id: customer.id,
+          opportunity_id: opportunity?.id || null,
+        }),
+        req.ip,
+      ],
+    );
+
+    await client.query("COMMIT");
+    res.status(201).json({
+      lead: updatedLeadResult.rows[0],
+      customer,
+      opportunity,
+      alreadyConverted: false,
+    });
+  } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (error.code === "23505") {
+      return res.status(409).json({
+        error: "A customer with this code, email, or phone already exists",
+      });
+    }
+    console.error("Convert lead error:", error.message);
+    res.status(500).json({ error: "Unable to convert lead" });
+  } finally {
+    client?.release();
+  }
+});
+
 // CREATE a lead
 router.post("/", async (req, res) => {
   const parsed = leadSchema.safeParse(req.body);
@@ -102,6 +341,12 @@ router.post("/", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       error: parsed.error.issues[0].message,
+    });
+  }
+
+  if (parsed.data.status === "Converted") {
+    return res.status(400).json({
+      error: "Use the lead conversion action to mark a lead as converted",
     });
   }
 
@@ -185,6 +430,20 @@ router.put("/:id", async (req, res) => {
     if (!existing.rowCount) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Lead not found" });
+    }
+
+    if (existing.rows[0].status === "Converted") {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: "Converted leads cannot be edited",
+      });
+    }
+
+    if (lead.status === "Converted") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Use the lead conversion action to mark a lead as converted",
+      });
     }
 
     const result = await client.query(
