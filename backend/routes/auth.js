@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { z } = require("zod");
 const pool = require("../db");
+const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -106,6 +107,25 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ error: "Unable to log in" });
   } finally {
     client?.release();
+  }
+});
+
+router.get("/me", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, email, role
+       FROM users
+       WHERE id = $1 AND is_active = TRUE`,
+      [req.user.id],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(401).json({ error: "User not found or inactive" });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch {
+    res.status(500).json({ error: "Unable to verify session" });
   }
 });
 
