@@ -26,14 +26,21 @@ export default function Dashboard() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let active = true;
+
     api
       .get("/dashboard")
-      .then(({ data }) => setStats(data))
-      .catch(() => setError("Unable to load dashboard."));
-  }, []);
+      .then(({ data }) => {
+        if (active) setStats(data);
+      })
+      .catch(() => {
+        if (active) setError("Unable to load dashboard.");
+      });
 
-  if (error) return <div className="alert alert-danger">{error}</div>;
-  if (!stats) return <p>Loading dashboard...</p>;
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const cards = [
     ["Total Customers", stats.total_customers],
@@ -43,31 +50,13 @@ export default function Dashboard() {
     ["Open Opportunities", stats.open_opportunities],
     ["Won Opportunities", stats.won_opportunities],
     ["Lost Opportunities", stats.lost_opportunities],
-    ["Pipeline Value", Number(stats.pipeline_value).toLocaleString()],
+    [
+      "Pipeline Value",
+      Number(stats.pipeline_value || 0).toLocaleString(undefined, {
+        maximumFractionDigits: 2,
+      }),
+    ],
   ];
-
-  const stageCounts = [
-    "Qualification",
-    "Proposal",
-    "Negotiation",
-    "Won",
-    "Lost",
-  ].map((stage) => ({
-    stage,
-    count: stats.opportunities_by_stage?.[stage] || 0,
-  }));
-
-  const leadCounts = [
-    "New",
-    "Contacted",
-    "Qualified",
-    "Unqualified",
-    "Converted",
-    "Lost",
-  ].map((status) => ({
-    status,
-    count: stats.leads_by_status?.[status] || 0,
-  }));
 
   const opportunityChart = {
     labels: ["Qualification", "Proposal", "Negotiation", "Won", "Lost"],
