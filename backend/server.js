@@ -8,6 +8,7 @@ const customerRoutes = require("./routes/customers");
 const dashboardRoutes = require("./routes/dashboard");
 const leadRoutes = require("./routes/leads");
 const opportunityRoutes = require("./routes/opportunities");
+const followupRoutes = require("./routes/followups");
 
 const cors = require("cors");
 
@@ -28,6 +29,7 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/opportunities", opportunityRoutes);
+app.use("/api/followups", followupRoutes);
 
 app.get("/api/health", async (req, res) => {
   try {
