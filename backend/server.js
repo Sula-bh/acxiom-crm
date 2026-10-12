@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const pool = require("./db");
 
@@ -8,13 +10,18 @@ app.get("/api/health", async (req, res) => {
   try {
     const result = await pool.query("SELECT current_database() AS database");
 
-    res.json({ status: "ok", ...result.rows[0] });
+    res.json({
+      status: "ok",
+      database: result.rows[0].database,
+    });
   } catch (error) {
-    console.error("Database connection failed:", error.message);
+    console.error("Database error:", error.message);
     res.status(500).json({ error: "Database connection failed" });
   }
 });
 
-app.listen(3001, () => {
-  console.log("Server running at http://localhost:5000");
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, "127.0.0.1", () => {
+  console.log(`Server running at http://127.0.0.1:${PORT}`);
 });
