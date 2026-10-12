@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { rateLimit } = require("express-rate-limit");
 const { z } = require("zod");
 const pool = require("../db");
 const { authenticateToken } = require("../middleware/auth");
@@ -12,7 +13,15 @@ const loginSchema = z.object({
   password: z.string().min(1).max(128),
 });
 
-router.post("/login", async (req, res) => {
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Try again later." },
+});
+
+router.post("/login", loginRateLimit, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
 
   if (!parsed.success) {

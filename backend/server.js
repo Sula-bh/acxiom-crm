@@ -13,8 +13,11 @@ const userRoutes = require("./routes/users");
 const reportsRoutes = require("./routes/reports");
 
 const cors = require("cors");
+const helmet = require("helmet");
 
 const app = express();
+
+app.use(helmet());
 
 app.use(
   cors({
@@ -37,12 +40,9 @@ app.use("/api/reports", reportsRoutes);
 
 app.get("/api/health", async (req, res) => {
   try {
-    const result = await pool.query("SELECT current_database() AS database");
+    await pool.query("SELECT 1");
 
-    res.json({
-      status: "ok",
-      database: result.rows[0].database,
-    });
+    res.json({ status: "ok" });
   } catch (error) {
     console.error("Database error:", error.message);
     res.status(500).json({ error: "Database connection failed" });
