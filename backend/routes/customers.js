@@ -19,7 +19,7 @@ const customerSchema = z.object({
   phone: z
     .string()
     .trim()
-    .regex(/^\+?[0-9]{10,15}$/),
+    .regex(/^\+?[0-9]{10,15}$/, "Enter a valid phone number"),
   companyName: z.string().trim().max(150).optional().default(""),
   address: z.string().trim().max(1000).optional().default(""),
   city: z.string().trim().max(100).optional().default(""),
@@ -45,8 +45,11 @@ function validateCustomer(req, res, next) {
   next();
 }
 
-function canAccessCustomer(user, customer) {
-  return user.role !== "SalesExecutive" || customer.owner_id === user.id;
+function canAccessCustomer(customer, user) {
+  return (
+    user.role !== "SalesExecutive" ||
+    Number(customer.owner_id) === Number(user.id)
+  );
 }
 
 // List/search customers
@@ -101,7 +104,7 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Customer not found" });
     }
 
-    if (!canAccessCustomer(req.user, result.rows[0])) {
+    if (!canAccessCustomer(result.rows[0], req.user)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -125,6 +128,15 @@ router.post(
         req.user.role === "SalesExecutive"
           ? req.user.id
           : c.ownerId || req.user.id;
+
+      const ownerCheck = await pool.query(
+        "SELECT id FROM users WHERE id = $1 AND is_active = TRUE",
+        [ownerId],
+      );
+
+      if (!ownerCheck.rowCount) {
+        return res.status(400).json({ error: "Invalid or inactive owner" });
+      }
 
       const result = await pool.query(
         `INSERT INTO customers
@@ -196,7 +208,7 @@ router.put(
         return res.status(404).json({ error: "Customer not found" });
       }
 
-      if (!canAccessCustomer(req.user, existing.rows[0])) {
+      if (!canAccessCustomer(existing.rows[0], req.user)) {
         await client.query("ROLLBACK");
         return res.status(403).json({ error: "Access denied" });
       }
@@ -205,6 +217,16 @@ router.put(
         req.user.role === "SalesExecutive"
           ? req.user.id
           : c.ownerId || existing.rows[0].owner_id;
+
+      const ownerCheck = await client.query(
+        "SELECT id FROM users WHERE id = $1 AND is_active = TRUE",
+        [ownerId],
+      );
+
+      if (!ownerCheck.rowCount) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Invalid or inactive owner" });
+      }
 
       const updated = await client.query(
         `UPDATE customers SET
