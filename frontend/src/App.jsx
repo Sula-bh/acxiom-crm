@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "./api";
+import Login from "./Login";
 
 const emptyForm = {
   customerCode: "",
@@ -14,6 +15,7 @@ const emptyForm = {
 };
 
 export default function App() {
+  const [user, setUser] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyForm);
@@ -44,6 +46,16 @@ export default function App() {
     const timer = setTimeout(loadCustomers, 250);
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    api
+      .get("/auth/me")
+      .then(({ data }) => setUser(data.user))
+      .catch(() => localStorage.removeItem("token"));
+  }, []);
 
   function openCreate() {
     setEditingId(null);
@@ -116,11 +128,30 @@ export default function App() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
+  if (!user) {
+    return <Login onLogin={setUser} />;
+  }
+
   return (
     <div className="container-fluid bg-light min-vh-100">
       <header className="bg-dark text-white px-4 py-3 d-flex justify-content-between align-items-center">
         <h4 className="mb-0">AcxiomCRM</h4>
-        <span>Customer Management</span>
+
+        <div className="d-flex align-items-center gap-3">
+          <span>Customers</span>
+          <span>
+            {user.name} · {user.role}
+          </span>
+          <button
+            className="btn btn-outline-light btn-sm"
+            onClick={() => {
+              localStorage.removeItem("token");
+              setUser(null);
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       <main className="container py-4">
