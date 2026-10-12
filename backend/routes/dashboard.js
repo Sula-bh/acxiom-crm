@@ -23,7 +23,32 @@ router.get("/", authenticateToken, async (req, res) => {
           WHERE stage NOT IN ('Won', 'Lost')) AS pipeline_value
     `);
 
-    res.json(result.rows[0]);
+    const [stages, statuses] = await Promise.all([
+      pool.query(`
+    SELECT stage, COUNT(*)::int AS count
+    FROM opportunities
+    GROUP BY stage
+  `),
+      pool.query(`
+    SELECT status, COUNT(*)::int AS count
+    FROM leads
+    GROUP BY status
+  `),
+    ]);
+
+    const opportunities_by_stage = Object.fromEntries(
+      stages.rows.map((row) => [row.stage, row.count]),
+    );
+
+    const leads_by_status = Object.fromEntries(
+      statuses.rows.map((row) => [row.status, row.count]),
+    );
+
+    res.json({
+      ...result.rows[0],
+      opportunities_by_stage,
+      leads_by_status,
+    });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({ error: "Unable to load dashboard" });
