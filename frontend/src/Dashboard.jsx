@@ -141,17 +141,19 @@ export default function Dashboard() {
           <div className="card shadow-sm h-100">
             <div className="card-body">
               <h5>Opportunities by Stage</h5>
-              <Bar
-                data={opportunityChart}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    y: { beginAtZero: true, ticks: { precision: 0 } },
-                  },
-                  plugins: { legend: { display: false } },
-                }}
-              />
+              <div style={{ position: "relative", height: "280px" }}>
+                <Bar
+                  data={opportunityChart}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                      y: { beginAtZero: true, ticks: { precision: 0 } },
+                    },
+                    plugins: { legend: { display: false } },
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -160,14 +162,16 @@ export default function Dashboard() {
           <div className="card shadow-sm h-100">
             <div className="card-body">
               <h5>Leads by Status</h5>
-              <Doughnut
-                data={leadChart}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: { legend: { position: "bottom" } },
-                }}
-              />
+              <div style={{ position: "relative", height: "280px" }}>
+                <Doughnut
+                  data={leadChart}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: "bottom" } },
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
