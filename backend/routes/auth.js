@@ -37,7 +37,7 @@ router.post("/login", loginRateLimit, async (req, res) => {
 
     const result = await client.query(
       `SELECT id, name, email, password_hash, role,
-              is_active, failed_login_count, lockout_until
+              is_active, failed_login_count, lockout_until, token_version
        FROM users WHERE email = $1 FOR UPDATE`,
       [email],
     );
@@ -96,7 +96,7 @@ router.post("/login", loginRateLimit, async (req, res) => {
     await client.query("COMMIT");
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: user.id, role: user.role, ver: user.token_version },
       process.env.JWT_SECRET,
       { expiresIn: "1h" },
     );
@@ -114,6 +114,43 @@ router.post("/login", loginRateLimit, async (req, res) => {
     if (client) await client.query("ROLLBACK").catch(() => {});
     console.error("Login error:", error.message);
     res.status(500).json({ error: "Unable to log in" });
+  } finally {
+    client?.release();
+  }
+});
+
+router.post("/logout", authenticateToken, async (req, res) => {
+  let client;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `UPDATE users
+       SET token_version = token_version + 1
+       WHERE id = $1 AND is_active = TRUE
+       RETURNING id`,
+      [req.user.id],
+    );
+
+    if (!result.rowCount) {
+      await client.query("ROLLBACK");
+      return res.status(401).json({ error: "User is no longer active" });
+    }
+
+    await client.query(
+      `INSERT INTO audit_logs (user_id, action, entity_name, record_id, ip_address)
+       VALUES ($1, 'LOGOUT', 'User', $1, $2)`,
+      [req.user.id, req.ip],
+    );
+
+    await client.query("COMMIT");
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    console.error("Logout error:", error.message);
+    res.status(500).json({ error: "Unable to log out securely" });
   } finally {
     client?.release();
   }

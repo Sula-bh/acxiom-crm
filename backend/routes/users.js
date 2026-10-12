@@ -92,7 +92,12 @@ router.patch("/:id/status", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `UPDATE users SET is_active = $1
+      `UPDATE users
+       SET is_active = $1,
+           token_version = token_version + CASE
+             WHEN is_active IS DISTINCT FROM $1 THEN 1
+             ELSE 0
+           END
        WHERE id = $2
        RETURNING id, name, email, role, is_active`,
       [parsed.data.is_active, id],

@@ -15,7 +15,7 @@ async function authenticateToken(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const result = await pool.query(
-      `SELECT id, name, email, role, is_active
+      `SELECT id, name, email, role, is_active, token_version
        FROM users WHERE id = $1`,
       [decoded.id],
     );
@@ -25,6 +25,12 @@ async function authenticateToken(req, res, next) {
     if (!user || !user.is_active) {
       return res.status(401).json({
         error: "Account is inactive or no longer exists",
+      });
+    }
+
+    if (decoded.ver !== user.token_version) {
+      return res.status(401).json({
+        error: "Invalid or revoked token",
       });
     }
 
