@@ -131,6 +131,7 @@ PORT=3001
 | `PORT` | No | API listening port; defaults to `3001`. |
 | `NODE_ENV` | No | Set to `production` for production behavior. Production database TLS verification cannot be disabled by `DATABASE_SSL=false`. |
 | `DATABASE_SSL` | No | Set to `false` only for a local/non-production PostgreSQL server that does not support TLS. Otherwise certificate verification is enabled. |
+| `DATABASE_IP_FAMILY` | No | PostgreSQL network address family; defaults to `4` to avoid unavailable IPv6 routes. Set to `6` only when the database endpoint is IPv6-only. |
 | `VITE_API_BASE_URL` | No | Frontend API base URL; defaults to `http://127.0.0.1:3001/api`. Set in `frontend/.env.local` when needed. |
 
 For example, a local-only frontend setting can be placed in
